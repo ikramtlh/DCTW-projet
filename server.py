@@ -1,46 +1,63 @@
 from flask import Flask, request, jsonify
-from flask_socketio import SocketIO, emit
 from flask_cors import CORS
+import socketio
 
+# Flask + SocketIO setup
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+sio = socketio.Server(cors_allowed_origins="*")
+app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
 
-matrix_data = None  # pour stocker la dernière matrice envoyée
-
+# Stockage
+connected_deciders = {}  # { sid: {"name": "decider1", "prefs": None, "weight": None} }
+latest_matrix = None
 
 @app.route("/")
 def home():
-    return jsonify({"message": "✅ Serveur DCTW SocketIO en ligne"})
-
+    """Afficher la liste des décideurs connectés"""
+    deciders_list = [
+        {"name": d["name"], "prefs": d.get("prefs"), "weight": d.get("weight")}
+        for d in connected_deciders.values()
+    ]
+    return jsonify({"connected_deciders": deciders_list, "matrix_ready": latest_matrix is not None})
 
 @app.route("/upload_matrix", methods=["POST"])
 def upload_matrix():
-    """Reçoit une matrice du coordinateur et la diffuse à tous les décideurs connectés"""
-    global matrix_data
+    global latest_matrix
     data = request.get_json()
-    matrix_data = data.get("matrix")
+    latest_matrix = data.get("matrix")
 
-    if not matrix_data:
-        return jsonify({"status": "error", "message": "Aucune matrice reçue"}), 400
+    if not latest_matrix:
+        return jsonify({"status": "error", "message": "No matrix provided"}), 400
 
-    print("📩 Nouvelle matrice reçue du coordinateur :", matrix_data)
-    socketio.emit("matrix_update", {"matrix": matrix_data})
-    return jsonify({"status": "ok", "message": "Matrice diffusée"})
+    # Broadcast to all connected deciders
+    sio.emit("matrix_update", {"matrix": latest_matrix})
+    print("✅ Matrice envoyée à tous les décideurs")
+    return jsonify({"status": "ok", "message": "Matrix broadcasted"})
 
+# ---------------- SocketIO ---------------- #
 
-@socketio.on("connect")
-def handle_connect():
-    print("🔌 Un client s'est connecté")
-    if matrix_data:
-        emit("matrix_update", {"matrix": matrix_data})  # Envoie la matrice actuelle au nouveau client
+@sio.event
+def connect(sid, environ):
+    print(f"🔌 Décideur connecté: {sid}")
+    connected_deciders[sid] = {"name": f"decider_{sid[:4]}", "prefs": None}
 
+@sio.event
+def disconnect(sid):
+    print(f"❌ Décideur déconnecté: {sid}")
+    connected_deciders.pop(sid, None)
 
-@socketio.on("disconnect")
-def handle_disconnect():
-    print("❌ Un client s'est déconnecté")
-
+@sio.event
+def preferences(sid, data):
+    """Réception des préférences envoyées par un décideur"""
+    decider_name = data.get("decider")
+    prefs = data.get("prefs")
+    if sid in connected_deciders:
+        connected_deciders[sid]["prefs"] = prefs
+        connected_deciders[sid]["name"] = decider_name
+        print(f"📨 Préférences reçues de {decider_name}: {prefs}")
+    sio.emit("preferences_update", connected_deciders)
 
 if __name__ == "__main__":
-    print("🚀 Serveur DCTW en ligne sur le port 5003...")
-    socketio.run(app, host="0.0.0.0", port=5003)
+    print("🚀 Démarrage du serveur coordinateur DCTW sur le port 5003...")
+    app.run(host="0.0.0.0", port=5003)
