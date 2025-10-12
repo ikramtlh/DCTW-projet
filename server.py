@@ -2,14 +2,12 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import socketio
 
-# Flask + SocketIO setup
 app = Flask(__name__)
 CORS(app)
 sio = socketio.Server(cors_allowed_origins="*")
 app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
 
-# Stockage
-connected_deciders = {}  # { sid: {"name": "decider1", "prefs": None, "weight": None} }
+connected_deciders = {}  
 latest_matrix = None
 
 @app.route("/")
@@ -30,12 +28,21 @@ def upload_matrix():
     if not latest_matrix:
         return jsonify({"status": "error", "message": "No matrix provided"}), 400
 
-    # Broadcast to all connected deciders
     sio.emit("matrix_update", {"matrix": latest_matrix})
     print("✅ Matrice envoyée à tous les décideurs")
     return jsonify({"status": "ok", "message": "Matrix broadcasted"})
 
-# ---------------- SocketIO ---------------- #
+@app.route("/deciders", methods=["GET"])
+def get_deciders():
+    return jsonify({
+        "connected_deciders": [
+            {"name": "decider_policeman", "weight": 40.0},
+            {"name": "decider_economist", "weight": 25.0},
+            {"name": "decider_environmental representative", "weight": 20.0},
+            {"name": "decider_public representative", "weight": 15.0},
+        ]
+    })
+
 
 @sio.event
 def connect(sid, environ):
@@ -46,17 +53,6 @@ def connect(sid, environ):
 def disconnect(sid):
     print(f"❌ Décideur déconnecté: {sid}")
     connected_deciders.pop(sid, None)
-
-@sio.event
-def preferences(sid, data):
-    """Réception des préférences envoyées par un décideur"""
-    decider_name = data.get("decider")
-    prefs = data.get("prefs")
-    if sid in connected_deciders:
-        connected_deciders[sid]["prefs"] = prefs
-        connected_deciders[sid]["name"] = decider_name
-        print(f"📨 Préférences reçues de {decider_name}: {prefs}")
-    sio.emit("preferences_update", connected_deciders)
 
 if __name__ == "__main__":
     print("🚀 Démarrage du serveur coordinateur DCTW sur le port 5003...")

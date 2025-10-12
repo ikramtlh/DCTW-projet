@@ -14,7 +14,6 @@ class CoordinatorApp:
         self.matrix = []
         self.entries = []
 
-        # 🔸 Définis ici tes décideurs et leurs poids (somme = 100%)
         self.deciders_local = [
             {"name": "decider_ikram", "weight": 40.0},
             {"name": "decider_2", "weight": 25.0},
@@ -22,13 +21,11 @@ class CoordinatorApp:
             {"name": "decider_4", "weight": 15.0},
         ]
 
-        # Top info
         top = ttk.Frame(root)
         top.pack(fill="x", padx=10, pady=8)
         self.info_label = ttk.Label(top, text="Welcome coordinateur", font=("Arial", 14, "bold"))
         self.info_label.pack(side="left")
 
-        # Buttons
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", padx=10, pady=6)
         ttk.Button(btn_frame, text="📂 Upload Excel", command=self.load_excel).pack(side="left", padx=4)
@@ -39,11 +36,11 @@ class CoordinatorApp:
         self.send_btn.pack(side="left", padx=4)
         ttk.Button(btn_frame, text="👥 Show Deciders", command=self.show_deciders_local).pack(side="left", padx=4)
 
-        # Status area
+       
         self.status = tk.Text(root, height=6, wrap="word", state="disabled")
         self.status.pack(fill="x", padx=10, pady=6)
 
-        # Matrix frame
+        
         self.canvas = tk.Canvas(root)
         self.frame_container = ttk.Frame(self.canvas)
         self.vsb = ttk.Scrollbar(root, orient="vertical", command=self.canvas.yview)
@@ -55,14 +52,14 @@ class CoordinatorApp:
         self.canvas.create_window((0, 0), window=self.frame_container, anchor="nw")
         self.frame_container.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
 
-    # --- Log Helper ---
+    
     def log(self, msg):
         self.status.configure(state="normal")
         self.status.insert("end", msg + "\n")
         self.status.see("end")
         self.status.configure(state="disabled")
 
-    # --- Matrice ---
+    
     def clear_grid(self):
         for row in self.entries:
             for e in row:
@@ -90,7 +87,7 @@ class CoordinatorApp:
         self.save_btn.config(state="enabled")
         self.send_btn.config(state="enabled")
 
-    # --- Excel ---
+    
     def load_excel(self):
         path = filedialog.askopenfilename(title="Choisir fichier Excel", filetypes=[("Excel files","*.xlsx")])
         if not path:
@@ -158,7 +155,7 @@ class CoordinatorApp:
         except Exception as e:
             messagebox.showerror("Erreur", f"Connexion serveur impossible: {e}")
 
-    # --- Décideurs locaux ---
+   
     def show_deciders_local(self):
         win = tk.Toplevel(self.root)
         win.title("Décideurs définis ")
