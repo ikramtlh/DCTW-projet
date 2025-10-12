@@ -20,7 +20,7 @@ def launch_all():
         coord_win = tk.Toplevel(root)
         CoordinatorApp(coord_win)
 
-        for i, name in enumerate(["decider1","decider2","decider3","decider4"], start=1):
+        for i, name in enumerate(["decider_policeman","decider_economist","decider_environmental representative","decider_public representative"], start=1):
             w = tk.Toplevel(root)
             DeciderApp(w, name)
 

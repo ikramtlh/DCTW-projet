@@ -15,10 +15,10 @@ class CoordinatorApp:
         self.entries = []
 
         self.deciders_local = [
-            {"name": "decider_ikram", "weight": 40.0},
-            {"name": "decider_2", "weight": 25.0},
-            {"name": "decider_3", "weight": 20.0},
-            {"name": "decider_4", "weight": 15.0},
+            {"name": "decider_policeman", "weight": 40.0},
+            {"name": "decider_economist", "weight": 25.0},
+            {"name": "decider_environmental representative", "weight": 20.0},
+            {"name": "decider_public representative", "weight": 15.0},
         ]
 
         top = ttk.Frame(root)
@@ -173,9 +173,6 @@ class CoordinatorApp:
         for d in self.deciders_local:
             tree.insert("", "end", values=(d["name"], f"{d['weight']:.2f} %"))
             total_weight += d["weight"]
-
-        # ttk.Label(win, text=f"Somme totale = {total_weight:.2f} %", foreground="green").pack(pady=5)
-        # self.log("✅ Décideurs locaux affichés.")
 
 if __name__ == "__main__":
     root = tk.Tk()

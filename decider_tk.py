@@ -1,10 +1,49 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox  
 import threading
 import socketio
-import random
 
 SERVER_WS = "http://localhost:5003"
+
+DECIDER_PREFS = {
+    "decider_policeman": [
+        ["Nuisances", 7.51, 0.6, 0.3, 1],
+        ["Bruit", 13.63, 0.6, 0.3, 0.8],
+        ["Impacts", 13.63, 0, 0, 0],
+        ["Géotechnique", 13.63, 110, 55, 220],
+        ["Équipements", 17.2, 10, 5, 20],
+        ["Accessibilité", 17.2, 0.6, 0.3, 1.2],
+        ["Climat", 17.2, 0.6, 0.3, 1.5],
+    ],
+    "decider_economist": [
+        ["Nuisances", 17.38, 0.5, 0.25, 1],
+        ["Bruit", 29.4, 0.6, 0.3, 1.2],
+        ["Impacts", 6.16, 0.3, 0.15, 0.6],
+        ["Géotechnique", 6.16, 99, 45, 180],
+        ["Équipements", 6.16, 6, 3, 12],
+        ["Accessibilité", 17.38, 0.5, 0.25, 1],
+        ["Climat", 17.38, 0.5, 0.25, 1],
+    ],
+    "decider_environmental representative": [
+        ["Nuisances", 4.96, 0.7, 0.35, 1.4],
+        ["Bruit", 7.08, 0.7, 0.35, 1.4],
+        ["Impacts", 17.31, 0.6, 0.3, 1.2],
+        ["Géotechnique", 18.93, 100, 50, 200],
+        ["Équipements", 18.93, 8, 4, 16],
+        ["Accessibilité", 17.52, 1, 0.5, 2],
+        ["Climat", 15.27, 0.7, 0.35, 1.4],
+    ],
+    "decider_public representative": [
+        ["Nuisances", 6.15, 0.4, 0.2, 0.8],
+        ["Bruit", 19.57, 0.4, 0.2, 0.8],
+        ["Impacts", 13.79, 0.2, 0.1, 0.4],
+        ["Géotechnique", 13.79, 60, 30, 120],
+        ["Équipements", 13.79, 4, 2, 8],
+        ["Accessibilité", 16.45, 0.6, 0.15, 0.6],
+        ["Climat", 16.45, 0.4, 0.2, 0.8],
+    ],
+}
+
 
 class DeciderApp:
     def __init__(self, root, name):
@@ -25,7 +64,7 @@ class DeciderApp:
 
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", padx=8, pady=6)
-        self.pref_btn = ttk.Button(btn_frame, text="Voir Préférences", command=self.show_preferences, state="disabled")
+        self.pref_btn = ttk.Button(btn_frame, text="Préférences", command=self.show_preferences, state="disabled")
         self.pref_btn.pack(side="left")
 
         self.sio = socketio.Client(logger=False, reconnection=True)
@@ -37,7 +76,6 @@ class DeciderApp:
         t.start()
 
     def _start_socketio(self):
-        """Connexion au serveur en arrière-plan."""
         try:
             self.sio.connect(SERVER_WS)
             self.sio.wait()
@@ -45,18 +83,15 @@ class DeciderApp:
             self.root.after(0, lambda: self._log(f"Erreur connexion SocketIO: {e}"))
 
     def _log(self, msg):
-        """Met à jour le texte de statut."""
         self.status.config(text=msg)
 
     def _on_matrix_update(self, payload):
-        """Reçoit la matrice depuis le coordinateur."""
         matrix = payload.get("matrix") if isinstance(payload, dict) else payload
         if not matrix:
             return
         self.root.after(0, lambda: self._show_matrix(matrix))
 
     def _show_matrix(self, matrix):
-        """Affiche la matrice dans un tableau Treeview."""
         self.tree.delete(*self.tree.get_children())
 
         num_cols = len(matrix[0])
@@ -74,34 +109,35 @@ class DeciderApp:
         self.pref_btn.config(state="enabled")
 
     def show_preferences(self):
-        """Affiche le tableau local des préférences du décideur."""
+        """Affiche la matrice de préférences spécifique au décideur."""
+        prefs = DECIDER_PREFS.get(self.name.lower())
+        if not prefs:
+            messagebox.showerror("Erreur", f"Aucune préférence trouvée pour {self.name}")
+            return
+
         pref_window = tk.Toplevel(self.root)
-        pref_window.title("Préférence")
-        pref_window.geometry("400x300")
+        pref_window.title(f"Préférences de {self.name}")
+        pref_window.geometry("600x300")
 
-        ttk.Label(pref_window, text=f"Préférences de {self.name}", font=("Arial", 12, "bold")).pack(pady=10)
+        ttk.Label(pref_window, text=f"Paramètres subjectifs du {self.name}",
+                  font=("Arial", 12, "bold")).pack(pady=10)
 
-        pref_tree = ttk.Treeview(pref_window, columns=("Préférence", "Valeur"), show="headings", height=6)
-        pref_tree.heading("Préférence", text="Préférence")
-        pref_tree.heading("Valeur", text="Valeur")
-        pref_tree.column("Préférence", anchor="center", width=150)
-        pref_tree.column("Valeur", anchor="center", width=150)
+        cols = ["Critères", "Poids", "P", "Q", "V"]
+        pref_tree = ttk.Treeview(pref_window, columns=cols, show="headings", height=8)
+        for col in cols:
+            pref_tree.heading(col, text=col)
+            pref_tree.column(col, anchor="center", width=100)
         pref_tree.pack(padx=10, pady=10, fill="both", expand=True)
 
-        data = [("w", random.randint(1, 10)),
-                ("p", random.randint(1, 10)),
-                ("q", random.randint(1, 10)),
-                ("v", random.randint(1, 10))]
-
-        for critere, valeur in data:
-            pref_tree.insert("", "end", values=(critere, valeur))
+        for row in prefs:
+            pref_tree.insert("", "end", values=row)
 
         ttk.Button(pref_window, text="Fermer", command=pref_window.destroy).pack(pady=10)
 
 
 if __name__ == "__main__":
     import sys
-    name = sys.argv[1] if len(sys.argv) > 1 else "decider1"
+    name = sys.argv[1] if len(sys.argv) > 1 else "decider_policeman"
     root = tk.Tk()
     app = DeciderApp(root, name)
     root.mainloop()
