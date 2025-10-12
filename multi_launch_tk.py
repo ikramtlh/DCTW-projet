@@ -1,17 +1,14 @@
 import tkinter as tk
 from tkinter import ttk
-import subprocess
-import sys
-import os
 
 from coordinator_tk import CoordinatorApp
 from decider_tk import DeciderApp
 
 def launch_all():
     root = tk.Tk()
-    root.title("Control Panel - Lancer interfaces")
+    root.title("Launch Interfaces")
     root.geometry("300x180")
-    ttk.Label(root, text="Lancer les interfaces :", font=("Arial", 12, "bold")).pack(pady=8)
+    ttk.Label(root, text="Launch the interfaces:", font=("Arial", 12, "bold")).pack(pady=8)
 
     btn_frame = ttk.Frame(root)
     btn_frame.pack(pady=10)
@@ -20,12 +17,17 @@ def launch_all():
         coord_win = tk.Toplevel(root)
         CoordinatorApp(coord_win)
 
-        for i, name in enumerate(["decider_policeman","decider_economist","decider_environmental representative","decider_public representative"], start=1):
+        for i, name in enumerate([
+            "decider_policeman",
+            "decider_economist",
+            "decider_environmental representative",
+            "decider_public representative"
+        ], start=1):
             w = tk.Toplevel(root)
             DeciderApp(w, name)
 
         root.withdraw()  
-    ttk.Button(btn_frame, text="Lancer toutes les interfaces", command=open_all).pack()
+    ttk.Button(btn_frame, text="Launch all interfaces", command=open_all).pack()
 
     root.mainloop()
 
