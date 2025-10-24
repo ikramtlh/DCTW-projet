@@ -7,40 +7,40 @@ SERVER_WS = "http://localhost:5003"
 
 DECIDER_PREFS = {
     "decider_policeman": [
-        ["Nuisances", 7.51, 0.6, 0.3, 1],
-        ["Noise", 13.63, 0.6, 0.3, 0.8],
-        ["Impacts", 13.63, 0, 0, 0],
-        ["Geotechnics", 13.63, 110, 55, 220],
-        ["Equipment", 17.2, 10, 5, 20],
-        ["Accessibility", 17.2, 0.6, 0.3, 1.2],
-        ["Climate", 17.2, 0.6, 0.3, 1.5],
+        [7.51, 0.6, 0.3, 1],
+        [13.63, 0.6, 0.3, 0.8],
+        [13.63, 0, 0, 0],
+        [13.63, 110, 55, 220],
+        [17.2, 10, 5, 20],
+        [17.2, 0.6, 0.3, 1.2],
+        [17.2, 0.6, 0.3, 1.5],
     ],
     "decider_economist": [
-        ["Nuisances", 17.38, 0.5, 0.25, 1],
-        ["Noise", 29.4, 0.6, 0.3, 1.2],
-        ["Impacts", 6.16, 0.3, 0.15, 0.6],
-        ["Geotechnics", 6.16, 99, 45, 180],
-        ["Equipment", 6.16, 6, 3, 12],
-        ["Accessibility", 17.38, 0.5, 0.25, 1],
-        ["Climate", 17.38, 0.5, 0.25, 1],
+        [17.38, 0.5, 0.25, 1],
+        [29.4, 0.6, 0.3, 1.2],
+        [6.16, 0.3, 0.15, 0.6],
+        [6.16, 99, 45, 180],
+        [6.16, 6, 3, 12],
+        [17.38, 0.5, 0.25, 1],
+        [17.38, 0.5, 0.25, 1],
     ],
     "decider_environmental representative": [
-        ["Nuisances", 4.96, 0.7, 0.35, 1.4],
-        ["Noise", 7.08, 0.7, 0.35, 1.4],
-        ["Impacts", 17.31, 0.6, 0.3, 1.2],
-        ["Geotechnics", 18.93, 100, 50, 200],
-        ["Equipment", 18.93, 8, 4, 16],
-        ["Accessibility", 17.52, 1, 0.5, 2],
-        ["Climate", 15.27, 0.7, 0.35, 1.4],
+        [4.96, 0.7, 0.35, 1.4],
+        [7.08, 0.7, 0.35, 1.4],
+        [17.31, 0.6, 0.3, 1.2],
+        [18.93, 100, 50, 200],
+        [18.93, 8, 4, 16],
+        [17.52, 1, 0.5, 2],
+        [15.27, 0.7, 0.35, 1.4],
     ],
     "decider_public representative": [
-        ["Nuisances", 6.15, 0.4, 0.2, 0.8],
-        ["Noise", 19.57, 0.4, 0.2, 0.8],
-        ["Impacts", 13.79, 0.2, 0.1, 0.4],
-        ["Geotechnics", 13.79, 60, 30, 120],
-        ["Equipment", 13.79, 4, 2, 8],
-        ["Accessibility", 16.45, 0.6, 0.15, 0.6],
-        ["Climate", 16.45, 0.4, 0.2, 0.8],
+        [6.15, 0.4, 0.2, 0.8],
+        [19.57, 0.4, 0.2, 0.8],
+        [13.79, 0.2, 0.1, 0.4],
+        [13.79, 60, 30, 120],
+        [13.79, 4, 2, 8],
+        [16.45, 0.6, 0.15, 0.6],
+        [16.45, 0.4, 0.2, 0.8],
     ],
 }
 
@@ -62,11 +62,18 @@ class DeciderApp:
         self.tree = ttk.Treeview(root, show="headings")
         self.tree.pack(fill="both", expand=True, padx=8, pady=6)
 
+        # --- Buttons frame ---
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", padx=8, pady=6)
-        self.pref_btn = ttk.Button(btn_frame, text="Show Preferences", command=self.show_preferences, state="disabled")
-        self.pref_btn.pack(side="left")
 
+        self.pref_btn = ttk.Button(btn_frame, text="Show Preferences", command=self.show_preferences, state="disabled")
+        self.pref_btn.pack(side="left", padx=4)
+
+        # Nouveau bouton PROMETHEE (à implémenter plus tard)
+        self.promethee_btn = ttk.Button(btn_frame, text="PROMETHEE", command=self.run_promethee, state="disabled")
+        self.promethee_btn.pack(side="left", padx=4)
+
+        # --- Socket.IO setup ---
         self.sio = socketio.Client(logger=False, reconnection=True)
         self.sio.on("matrix_update", self._on_matrix_update)
         self.sio.on("connect", lambda: self._log("🟢 Connected to server – waiting for matrix..."))
@@ -75,12 +82,13 @@ class DeciderApp:
         t = threading.Thread(target=self._start_socketio, daemon=True)
         t.start()
 
+    # ---------------- SocketIO ----------------
     def _start_socketio(self):
         try:
             self.sio.connect(SERVER_WS)
             self.sio.wait()
-        except Exception as e:
-            self.root.after(0, lambda: self._log(f"SocketIO connection error: {e}"))
+        except Exception as err:
+            self.root.after(0, lambda err=err: self._log(f"SocketIO connection error: {err}"))
 
     def _log(self, msg):
         self.status.config(text=msg)
@@ -91,9 +99,9 @@ class DeciderApp:
             return
         self.root.after(0, lambda: self._show_matrix(matrix))
 
+    # ---------------- Matrix Display ----------------
     def _show_matrix(self, matrix):
         self.tree.delete(*self.tree.get_children())
-
         num_cols = len(matrix[0])
         cols = [f"Col {i+1}" for i in range(num_cols)]
         self.tree["columns"] = cols
@@ -107,13 +115,16 @@ class DeciderApp:
 
         self._log("✅ Matrix received from coordinator")
         self.pref_btn.config(state="enabled")
+        self.promethee_btn.config(state="enabled")
 
+    # ---------------- Preferences ----------------
     def show_preferences(self):
-        """Display the preference matrix for this decider."""
         prefs = DECIDER_PREFS.get(self.name.lower())
         if not prefs:
             messagebox.showerror("Error", f"No preferences found for {self.name}")
             return
+
+        criteria = ["Nuisances", "Noise", "Impacts", "Geotechnics", "Equipment", "Accessibility", "Climate"]
 
         pref_window = tk.Toplevel(self.root)
         pref_window.title(f"{self.name}'s Preferences")
@@ -129,10 +140,13 @@ class DeciderApp:
             pref_tree.column(col, anchor="center", width=100)
         pref_tree.pack(padx=10, pady=10, fill="both", expand=True)
 
-        for row in prefs:
-            pref_tree.insert("", "end", values=row)
+        for crit, vals in zip(criteria, prefs):
+            pref_tree.insert("", "end", values=[crit] + vals)
 
         ttk.Button(pref_window, text="Close", command=pref_window.destroy).pack(pady=10)
+
+    def run_promethee(self):
+        messagebox.showinfo("PROMETHEE", "PROMETHEE method will be implemented soon!")
 
 
 if __name__ == "__main__":

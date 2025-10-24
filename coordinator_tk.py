@@ -21,11 +21,13 @@ class CoordinatorApp:
             {"name": "decider_public representative", "weight": 15.0},
         ]
 
+        # --- Header
         top = ttk.Frame(root)
         top.pack(fill="x", padx=10, pady=8)
         self.info_label = ttk.Label(top, text="Welcome Coordinator", font=("Arial", 14, "bold"))
         self.info_label.pack(side="left")
 
+        # --- Button bar
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", padx=10, pady=6)
         ttk.Button(btn_frame, text="📂 Upload Excel", command=self.load_excel).pack(side="left", padx=4)
@@ -36,7 +38,10 @@ class CoordinatorApp:
         self.send_btn.pack(side="left", padx=4)
         ttk.Button(btn_frame, text="👥 Show Deciders", command=self.show_deciders_local).pack(side="left", padx=4)
 
-        # Removed the log/status box
+        # ✅ Nouveau bouton "Aggréger"
+        ttk.Button(btn_frame, text="⚙️ Aggréger", command=self.aggregate_action).pack(side="left", padx=4)
+
+        # --- Canvas for matrix
         self.canvas = tk.Canvas(root)
         self.frame_container = ttk.Frame(self.canvas)
         self.vsb = ttk.Scrollbar(root, orient="vertical", command=self.canvas.yview)
@@ -47,6 +52,10 @@ class CoordinatorApp:
         self.canvas.pack(fill="both", expand=True, padx=10, pady=6)
         self.canvas.create_window((0, 0), window=self.frame_container, anchor="nw")
         self.frame_container.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+
+    def aggregate_action(self):
+        """⚙️ Fonction à implémenter plus tard."""
+        messagebox.showinfo("Aggréger", "La fonction d’agrégation sera implémentée plus tard")
 
     def clear_grid(self):
         for row in self.entries:
