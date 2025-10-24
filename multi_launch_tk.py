@@ -14,8 +14,8 @@ def launch_all():
     btn_frame.pack(pady=10)
 
     def open_all():
-        coord_win = tk.Toplevel(root)
-        CoordinatorApp(coord_win)
+        # coord_win = tk.Toplevel(root)
+        # CoordinatorApp(coord_win)
 
         for i, name in enumerate([
             "decider_policeman",

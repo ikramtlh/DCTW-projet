@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 import threading
 import socketio
 
-SERVER_WS = "http://localhost:5003"
+SERVER_WS = "http://192.168.1.10:5003"
 
 DECIDER_PREFS = {
     "decider_policeman": [
