@@ -7,20 +7,23 @@ CORS(app)
 sio = socketio.Server(cors_allowed_origins="*")
 app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
 
-connected_deciders = {}  
-latest_matrix = None
+connected_deciders = {}  # store decider info
+latest_matrix = None     # last uploaded matrix
+
 
 @app.route("/")
 def home():
-    """Afficher la liste des décideurs connectés"""
+    """Show connected deciders and matrix status"""
     deciders_list = [
         {"name": d["name"], "prefs": d.get("prefs"), "weight": d.get("weight")}
         for d in connected_deciders.values()
     ]
     return jsonify({"connected_deciders": deciders_list, "matrix_ready": latest_matrix is not None})
 
+
 @app.route("/upload_matrix", methods=["POST"])
 def upload_matrix():
+    """Coordinator uploads matrix and broadcasts to deciders"""
     global latest_matrix
     data = request.get_json()
     latest_matrix = data.get("matrix")
@@ -29,11 +32,13 @@ def upload_matrix():
         return jsonify({"status": "error", "message": "No matrix provided"}), 400
 
     sio.emit("matrix_update", {"matrix": latest_matrix})
-    print("✅ Matrice envoyée à tous les décideurs")
+    print("✅ Matrix sent to all deciders")
     return jsonify({"status": "ok", "message": "Matrix broadcasted"})
+
 
 @app.route("/deciders", methods=["GET"])
 def get_deciders():
+    """Return list of deciders (fixed example)"""
     return jsonify({
         "connected_deciders": [
             {"name": "decider_policeman", "weight": 40.0},
@@ -46,14 +51,38 @@ def get_deciders():
 
 @sio.event
 def connect(sid, environ):
-    print(f"🔌 Décideur connecté: {sid}")
+    print(f"🔌 Decider connected: {sid}")
     connected_deciders[sid] = {"name": f"decider_{sid[:4]}", "prefs": None}
+
 
 @sio.event
 def disconnect(sid):
-    print(f"❌ Décideur déconnecté: {sid}")
+    print(f"❌ Decider disconnected: {sid}")
     connected_deciders.pop(sid, None)
 
+
+@sio.event
+def final_ranking(sid, data):
+    decider_name = data.get("decider")
+    ranking = data.get("ranking")
+    phi = data.get("phi")
+    print(f"📊 Received ranking from {decider_name}: {ranking}")
+
+    # sauvegarde côté serveur
+    connected_deciders[sid]["ranking"] = ranking
+    connected_deciders[sid]["phi"] = phi
+
+    # émet au client coordonnateur
+    sio.emit("final_ranking", {
+        "decider": decider_name,
+        "ranking": ranking,
+        "phi": phi
+    })
+
 if __name__ == "__main__":
-    print("🚀 Démarrage du serveur coordinateur DCTW sur le port 5003...")
-    app.run(host="0.0.0.0", port=5003)
+    import eventlet
+    import eventlet.wsgi
+
+    print("🚀 Coordinator server running on port 5003...")
+    # eventlet WSGI server pour supporter Socket.IO
+    eventlet.wsgi.server(eventlet.listen(("0.0.0.0", 5003)), app)

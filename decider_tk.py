@@ -1,4 +1,3 @@
-# decider_tk.py
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -6,9 +5,11 @@ import socketio
 import numpy as np
 import math
 
+
 # Put here the coordinator address the decider should connect to.
 # If coordinator runs on another PC, set SERVER_WS = "http://192.168.x.y:5003"
 SERVER_WS = "http://192.168.1.19:5003"
+
 
 # Structure: [weight, P, Q, V] for each criterion (index order expected by UI)
 DECIDER_PREFS = {
@@ -50,24 +51,11 @@ DECIDER_PREFS = {
     ],
 }
 
+
 # Fixed list of criteria names for display (UI only)
 CRITERIA_NAMES = ["Nuisances", "Noise", "Impacts", "Geotechnics", "Equipment", "Accessibility", "Climate"]
 
-def _send_final_result(self, phi, ranking_idx):
-    try:
-        ranking_list = [int(i) for i in ranking_idx]
 
-        payload = {
-            "decider": self.name,
-            "phi": phi.tolist(),
-            "ranking": ranking_list
-        }
-
-        self.sio.emit("final_ranking", payload)
-        messagebox.showinfo("Success", "Final ranking sent to coordinator! 🎉")
-    except Exception as e:
-        messagebox.showerror("Error", f"Cannot send result: {e}")
-        
 def _to_float_safe(x):
     """
     Try to convert x to float. Accepts strings with comma decimal separators.
@@ -205,6 +193,21 @@ class DeciderApp:
 
     def _log(self, msg):
         self.status.config(text=msg)
+
+    def _send_final_result(self, phi, ranking_idx):
+        """Send final ranking to coordinator via SocketIO"""
+        try:
+            ranking_list = [int(i) for i in ranking_idx]
+            payload = {
+                "decider": self.name,
+                "phi": phi.tolist(),
+                "ranking": ranking_list
+            }
+            self.sio.emit("final_ranking", payload)
+            messagebox.showinfo("Success", "Final ranking sent to coordinator! 🎉")
+            self._log("✅ Ranking sent to coordinator")
+        except Exception as e:
+            messagebox.showerror("Error", f"Cannot send result: {e}")
 
     def _on_matrix_update(self, payload):
         # payload expected to be {"matrix": matrix}
@@ -398,13 +401,24 @@ class DeciderApp:
         ranking_idx = self.promethee_results["ranking_idx"]
         win = tk.Toplevel(self.root)
         win.title("Final Ranking")
-        win.geometry("500x420")
+        win.geometry("500x450")  # Slightly taller to fit button
 
-        txt = tk.Text(win, wrap="none")
+        # Create frame for text and button
+        content_frame = ttk.Frame(win)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        txt = tk.Text(content_frame, wrap="none")
         txt.pack(expand=True, fill="both")
         txt.insert("end", "Rank\tAction\tPhi\n")
         for rank, idx in enumerate(ranking_idx, start=1):
             txt.insert("end", f"{rank}\t{self.actions[idx]}\t{phi[idx]:.4f}\n")
+
+        # NEW SEND RANKING BUTTON
+        send_btn_frame = ttk.Frame(win)
+        send_btn_frame.pack(fill="x", padx=10, pady=10)
+        send_btn = ttk.Button(send_btn_frame, text="🚀 Send Ranking to Coordinator", 
+                              command=lambda: self._send_final_result(phi, ranking_idx))
+        send_btn.pack()
 
 
 if __name__ == "__main__":
