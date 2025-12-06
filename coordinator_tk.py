@@ -24,7 +24,7 @@ class CoordinatorApp:
             {"name": "decider_environmental representative", "weight": 20.0},
             {"name": "decider_public representative", "weight": 15.0},
         ]
-
+        self.ready_deciders = set()
         self.sio = None
         self.sio_thread = None
         self.received_rankings = {}
@@ -67,6 +67,15 @@ class CoordinatorApp:
 
     # ------------------- SOCKET.IO -------------------
     def start_socketio_client(self):
+        @self.sio.on("decider_ready")
+        def on_decider_ready(data):
+            decider_name = data.get("decider")
+            if decider_name:
+                self.ready_deciders.add(decider_name)
+                print(f"[DEBUG] Decider ready: {decider_name}")
+                # Optional: update info label
+                self.root.after(0, lambda: self.info_label.config(
+                    text=f"Ready deciders: {len(self.ready_deciders)}/{len(self.deciders_local)}"))
         def run_client():
             try:
                 self.sio = socketio.Client(logger=False, reconnection=True)
@@ -153,9 +162,188 @@ class CoordinatorApp:
 
     # ------------------- AGGREGATION -------------------
     def aggregate_action(self):
-        messagebox.showinfo("Aggréger", "La fonction d'agrégation sera implémentée plus tard")
+        if len(self.received_rankings) < len(self.deciders_local):
+            messagebox.showwarning("Missing Data", "Not all deciders have submitted their rankings yet.")
+            return
 
-    # ------------------- MATRIX GRID -------------------
+        win = tk.Toplevel(self.root)
+        win.title("Aggregation")
+        win.geometry("350x200")
+
+        ttk.Label(win, text="Choose aggregation method:", font=("Arial", 12, "bold")).pack(pady=10)
+
+        ttk.Button(win, text="📊 Scorage", command=lambda: self.compute_scores(win)).pack(pady=10)
+        ttk.Button(win, text="🤝 Start Negotiation", command=lambda: self.start_negotiation(win)).pack(pady=10)
+
+    def compute_scores(self, parent_win):
+        # Extract actions
+        actions = [row[0] for row in self.matrix[1:]]
+        n_actions = len(actions)
+
+        # Prepare score list
+        scores = [0] * n_actions
+
+        # Compute score(action i) = sum_j ( weight_j * rank_j(i) )
+        for dec in self.deciders_local:
+            dec_name = dec["name"]
+            weight = dec["weight"]
+
+            if dec_name not in self.received_rankings:
+                continue  # skip if missing
+
+            ranking = self.received_rankings[dec_name]["ranking"]
+
+            # ranking[pos] = index of action
+            # we need rank(action i)
+            for pos, action_idx in enumerate(ranking):
+                if action_idx < n_actions:
+                    scores[action_idx] += weight * (pos + 1)
+
+        # Create result window
+        res = tk.Toplevel(parent_win)
+        res.title("Scorage Results")
+        res.geometry("450x400")
+
+        ttk.Label(res, text="Scores of Actions:", font=("Arial", 12, "bold")).pack(pady=10)
+
+        cols = ("Action", "Score")
+        tree = ttk.Treeview(res, columns=cols, show="headings", height=12)
+        tree.heading("Action", text="Action")
+        tree.heading("Score", text="Score")
+        tree.column("Action", width=250)
+        tree.column("Score", width=120, anchor="center")
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Insert values sorted by score ascending (best = lowest)
+        results = sorted(zip(actions, scores), key=lambda x: x[1])
+
+        for act, sc in results:
+            tree.insert("", "end", values=(act, f"{sc:.2f}"))
+
+    def start_negotiation(self, parent_win):
+        # Compute scorage list first
+        actions = [row[0] for row in self.matrix[1:]]
+        n_actions = len(actions)
+        scores = [0] * n_actions
+
+        for dec in self.deciders_local:
+            name = dec["name"]
+            weight = dec["weight"]
+            ranking = self.received_rankings[name]["ranking"]
+            for pos, idx in enumerate(ranking):
+                scores[idx] += weight * (pos + 1)
+
+        # Sort actions by score (lowest score = best)
+        scorage_sorted = sorted([(actions[i], scores[i], i) for i in range(n_actions)], key=lambda x: x[1])
+
+        current_index = 0
+        decider_votes = {}
+        awaiting_votes = False
+        total_deciders = len(self.deciders_local)
+
+        # Log window
+        log_box = tk.Text(parent_win, height=20, state="disabled")
+        log_box.pack(fill="both", expand=True, padx=10, pady=10)
+
+        def log(msg):
+            log_box.config(state="normal")
+            log_box.insert("end", msg + "\n")
+            log_box.see("end")
+            log_box.config(state="disabled")
+
+        # ------------------------------
+        # Send action to deciders
+        # ------------------------------
+        # ------------------------------
+        # Send action to deciders
+        # ------------------------------
+        def send_action(action_name):
+            try:
+                self.sio.emit("negotiation_proposal", {"action": action_name})
+                log(f"📤 Sent action '{action_name}' to deciders.")
+                print(f"[DEBUG] Sent action to deciders: {action_name}")  # <-- Added print statement
+            except Exception as e:
+                log(f"❌ Failed to send action: {e}")
+                print(f"[ERROR] Failed to send action: {e}")  # <-- Also print errors
+        # ------------------------------
+        # Process votes
+        # ------------------------------
+        @self.sio.on("negotiation_vote")
+        def on_vote(data):
+            nonlocal decider_votes, awaiting_votes
+            if not awaiting_votes:
+                return
+
+            dec_name = data["decider"]
+            vote = data["vote"]
+            decider_votes[dec_name] = vote
+            log(f"• {dec_name} → {vote}")
+
+            # Check if all votes received
+            if len(decider_votes) == total_deciders:
+                awaiting_votes = False
+                finalize_round()
+
+        # ------------------------------
+        # Finalize round
+        # ------------------------------
+        def finalize_round():
+            nonlocal current_index
+            yes_count = sum(1 for v in decider_votes.values() if v.upper() == "YES")
+            yes_rate = yes_count / total_deciders
+            log(f"➡ YES rate: {yes_rate*100:.1f}%")
+
+            if yes_rate >= 0.9:
+                chosen = scorage_sorted[current_index][0]
+                log(f"\n🎉 CONSENSUS REACHED → {chosen}")
+                done_btn.config(state="normal")
+                try:
+                    self.sio.emit("negotiation_done", {"action": chosen})
+                    log("📨 Notified all deciders of selection.")
+                except:
+                    log("❌ Failed to notify deciders.")
+                next_btn.config(state="disabled")
+            else:
+                log("⏳ Consensus not reached. Click 'Next Tour' to continue.")
+                next_btn.config(state="normal")
+
+        # ------------------------------
+        # Start next action
+        # ------------------------------
+        def start_round():
+            nonlocal current_index, decider_votes, awaiting_votes
+            if current_index >= len(scorage_sorted):
+                log("⚠ No more actions available. Negotiation failed.")
+                next_btn.config(state="disabled")
+                return
+            act_name = scorage_sorted[current_index][0]
+            log(f"\n=== 🚀 PROPOSAL → {act_name} ===")
+            decider_votes = {}
+            awaiting_votes = True
+            send_action(act_name)
+
+        # ------------------------------
+        # Buttons
+        # ------------------------------
+        btn_frame = ttk.Frame(parent_win)
+        btn_frame.pack(pady=5)
+
+        done_btn = ttk.Button(btn_frame, text="✅ Done", state="disabled")
+        done_btn.pack(side="left", padx=5)
+
+        next_btn = ttk.Button(btn_frame, text="Next Tour", command=lambda: next_tour(), state="disabled")
+        next_btn.pack(side="left", padx=5)
+
+        def next_tour():
+            nonlocal current_index
+            current_index += 1
+            next_btn.config(state="disabled")
+            start_round()
+
+        # Start the first round automatically
+        start_round()
+        # ------------------- MATRIX GRID -------------------
+    
     def clear_grid(self):
         for row in self.entries:
             for e in row:
